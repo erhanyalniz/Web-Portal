@@ -1,0 +1,129 @@
+﻿@page "/login"
+@inject AuthenticationService AuthService
+@inject NavigationManager NavigationManager
+@inject UserService UserService
+
+<div class="login-container">
+    <h2 class="login-title">Login</h2>
+
+    <div class="login-form-container">
+        <EditForm Model="@user" OnValidSubmit="HandleLogin">
+            <div class="form-group">
+                <label for="Email">Email:</label>
+                <InputText id="Email" @bind-Value="user.Email" class="form-control" />
+            </div>
+
+            <div class="form-group">
+                <label for="Password">Password:</label>
+                <InputText id="Password" @bind-Value="user.Password" type="password" class="form-control" />
+            </div>
+
+            <div class="form-group">
+                <button type="submit" class="login-button">Login</button>
+            </div>
+        </EditForm>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="error-message">
+            @errorMessage
+        </div>
+    }
+</div>
+
+<style>
+    .login-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        background-color: #f2f2f2;
+    }
+
+    .login-title {
+        color: #333;
+        font-family: 'Arial', sans-serif;
+        margin-bottom: 20px;
+    }
+
+    .login-form-container {
+        background: white;
+        padding: 40px;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 16px;
+    }
+
+    .login-button {
+        width: 100%;
+        padding: 10px;
+        border: none;
+        border-radius: 4px;
+        background-color: #4CAF50;
+        color: white;
+        font-size: 16px;
+        cursor: pointer;
+    }
+
+        .login-button:hover {
+            background-color: #45a049;
+        }
+
+    .error-message {
+        color: red;
+        font-weight: bold;
+        margin-top: 20px;
+    }
+</style>
+
+@code {
+    private BlazorWebApp.Shared.User user = new BlazorWebApp.Shared.User();
+    private string errorMessage;
+
+    private async Task HandleLogin()
+    {
+        if (string.IsNullOrWhiteSpace(user.Email))
+        {
+            errorMessage = "Email field cannot be empty!";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(user.Password))
+        {
+            errorMessage = "Password field cannot be empty!";
+            return;
+        }
+
+        var result = await AuthService.Login(user);
+
+        switch (result)
+        {
+            case "Success":
+                await UserService.SetCurrentUserEmailAsync(user.Email); // Set email in UserService
+                NavigationManager.NavigateTo("/totp-process");
+                break;
+            case "UserNotFound":
+                errorMessage = "This email doesn't exist in the system.";
+                break;
+            case "IncorrectPassword":
+                errorMessage = "Incorrect password, please try again!";
+                break;
+            default:
+                errorMessage = "An error occurred. Please try again later.";
+                break;
+        }
+    }
+}

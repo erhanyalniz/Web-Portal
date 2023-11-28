@@ -1,0 +1,84 @@
+﻿@page "/Orders"
+@inject HttpClient Http
+@using BlazorWebApp.Models
+@using Radzen.Blazor
+@using System.Linq
+@using System.Diagnostics;
+
+<h3>Coin Information</h3>
+
+
+
+@if (orders == null || orders.Count < 1)
+{
+    <Loading></Loading>
+    @* <p><em>Loading...</em></p>*@
+}
+else
+{
+
+    <RadzenDataList AllowVirtualization=@allowVirtualization Style="@(allowVirtualization ? "height:400px;overflow:auto;" : "")"
+                    WrapItems="@(!allowVirtualization)"
+                    Data="@orders" TItem="Order" PageSize="10" AllowPaging=true PagerHorizontalAlign="Radzen.HorizontalAlign.Left" ShowPagingSummary="true">
+        <Template Context="order">
+            <RadzenCard Style="width: 100%; padding: 0;">
+                <RadzenRow Gap="0">
+                    <RadzenColumn Size="12" SizeLG="3" Class="rz-p-4 product-title">
+                        <RadzenText Style="color:dimgray !important;" TextStyle="TextStyle.H6" TagName="TagName.H5" class="rz-color-secondary">@(order.Units.FirstOrDefault().Nummer)</RadzenText>
+                        </RadzenColumn>
+                        <RadzenColumn Size="12" SizeLG="7" Class="rz-p-4">
+                            <RadzenRow Gap="0">
+                                <RadzenColumn Size="12" SizeMD="6" SizeLG="2">
+                                    <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H5" Class="rz-mb-0">Type</RadzenText>
+                                    <RadzenText TextStyle="TextStyle.Body2">@(order.Units.FirstOrDefault().Type)</RadzenText>
+                                </RadzenColumn>
+                                <RadzenColumn Size="12" SizeMD="6" SizeLG="2">
+                                    <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H5" Class="rz-mb-0">Rederij</RadzenText>
+                                    <RadzenText TextStyle="TextStyle.Body2">@(order.Units.FirstOrDefault().Rederij)</RadzenText>
+                                </RadzenColumn>
+                                <RadzenColumn Size="12" SizeMD="6" SizeLG="5">
+                                    <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H5" Class="rz-mb-0">Status</RadzenText>
+                                    <RadzenText TextStyle="TextStyle.Body2">@(order.Units.FirstOrDefault().Status)</RadzenText>
+                                </RadzenColumn>
+                                <RadzenColumn Size="12" SizeMD="6" SizeLG="3" Class="rz-text-align-start rz-text-align-lg-end">
+                                    <RadzenBadge BadgeStyle="Radzen.BadgeStyle.Secondary" Shade="Radzen.Shade.Lighter" class="price-badge" Text=@($"{String.Format(new System.Globalization.CultureInfo("en-US"), "{0:C}", order.OrderNr)}") />
+                                </RadzenColumn>
+                            </RadzenRow>
+                        </RadzenColumn>
+                        <RadzenColumn Size="12" SizeLG="2" Class="rz-p-4">
+                        <RadzenButton Text="Details" Click=@ToggleOrderDetailsTest Style="width: 80%; height: 5vh !important; border-radius:25px !important; background-color:dodgerblue !important" />
+                           
+                        </RadzenColumn>
+
+                    </RadzenRow>
+                </RadzenCard>
+            </Template>
+        </RadzenDataList>
+        <button @onclick="ToggleOrderDetailsTest"> button test</button>
+}
+
+@code {
+    bool allowVirtualization = false;
+    private List<Order> orders = new List<Order>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var requestMessage = new HttpRequestMessage(HttpMethod.Get, "https://localhost:7188/order");
+
+        var response = await Http.SendAsync(requestMessage);
+        if (response.IsSuccessStatusCode)
+        {
+            orders = await response.Content.ReadFromJsonAsync<List<Order>>();
+        }
+    }
+
+    private void ToggleOrderDetails(string orderNr)
+    {
+        Trace.WriteLine(orderNr);
+    }
+
+    private void ToggleOrderDetailsTest()
+    {
+        Trace.WriteLine("Button clicked!");
+    }
+}

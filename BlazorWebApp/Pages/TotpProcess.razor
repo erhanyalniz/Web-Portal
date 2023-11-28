@@ -1,0 +1,202 @@
+﻿@page "/totp-process"
+@inject AuthenticationService AuthService
+@inject NavigationManager NavigationManager
+@inject UserService UserService
+@inject IJSRuntime JSRuntime
+
+<h3>Two-Factor Authentication Setup</h3>
+
+@if (!hasTotpSecret)
+{
+    <div class="verification-form-container">
+        <h2 class="verification-title">Verification</h2>
+
+        @if (!string.IsNullOrEmpty(qrCodeData) && qrCodeData != "NoQRCodeNeeded")
+        {
+            <img src="data:image/png;base64,@qrCodeData" alt="TOTP QR Code" class="qr-code-img" />
+            <p>After scanning the QR code with your authenticator app, please enter your verification code below to verify the setup.</p>
+        }
+
+        <div id="error-message" class="error"></div>
+
+        <EditForm Model="@this" OnValidSubmit="HandleVerification">
+            <div class="totp-inputs">
+                <InputText @bind-Value="Digit1" maxlength="1" class="totp-digit-input" />
+                <InputText @bind-Value="Digit2" maxlength="1" class="totp-digit-input" />
+                <InputText @bind-Value="Digit3" maxlength="1" class="totp-digit-input" />
+                <InputText @bind-Value="Digit4" maxlength="1" class="totp-digit-input" />
+                <InputText @bind-Value="Digit5" maxlength="1" class="totp-digit-input" />
+                <InputText @bind-Value="Digit6" maxlength="1" class="totp-digit-input" />
+            </div>
+            <button type="submit" class="verify-button">Verify</button>
+        </EditForm>
+    </div>
+}
+else
+{
+    <div class="verification-form-container">
+        <h2 class="verification-title">Verification</h2>
+        <p>You have already set up your authenticator. Please enter the verification code.</p>
+
+        <div id="error-message" class="error"></div>
+
+        <EditForm Model="@this" OnValidSubmit="HandleVerification">
+            <div class="totp-inputs">
+                <InputText @bind-Value="Digit1" maxlength="1" class="totp-digit-input" />
+                <InputText @bind-Value="Digit2" maxlength="1" class="totp-digit-input" />
+                <InputText @bind-Value="Digit3" maxlength="1" class="totp-digit-input" />
+                <InputText @bind-Value="Digit4" maxlength="1" class="totp-digit-input" />
+                <InputText @bind-Value="Digit5" maxlength="1" class="totp-digit-input" />
+                <InputText @bind-Value="Digit6" maxlength="1" class="totp-digit-input" />
+            </div>
+            <button type="submit" class="verify-button">Verify</button>
+        </EditForm>
+        <p></p>
+        <button @onclick="RegenerateTotp" class="regenerate-button">Regenerate Authentication</button>
+    </div>
+}
+
+@if (verificationFailed)
+{
+    <div class="alert alert-danger" role="alert">
+        @errorMessage
+    </div>
+}
+
+@code {
+    private string Digit1, Digit2, Digit3, Digit4, Digit5, Digit6;
+    private TotpVerificationRequest totpRequest = new TotpVerificationRequest();
+    private bool verificationFailed = false;
+    private string errorMessage;
+    private bool hasTotpSecret = false;
+    private string qrCodeData;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var userEmail = await UserService.GetCurrentUserEmailAsync();
+        qrCodeData = await AuthService.SetupTotp(userEmail);
+        hasTotpSecret = !string.IsNullOrWhiteSpace(qrCodeData) && !qrCodeData.StartsWith("Error");
+    }
+
+    private async Task HandleVerification()
+    {
+        var concatenatedCode = $"{Digit1}{Digit2}{Digit3}{Digit4}{Digit5}{Digit6}";
+        totpRequest.Email = await UserService.GetCurrentUserEmailAsync();
+        if (concatenatedCode.Length < 6)
+        {
+            errorMessage = "Complete verification code is required.";
+            verificationFailed = true;
+            return;
+        }
+
+        totpRequest.TotpValue = concatenatedCode;
+        var response = await AuthService.VerifyTotp(totpRequest);
+
+        if (response.IsSuccessStatusCode)
+        {
+            await UserService.SetUserAuthenticatedAsync(true);
+            NavigationManager.NavigateTo("/", forceLoad: true);
+        }
+        else
+        {
+            verificationFailed = true;
+            if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            {
+                errorMessage = "Invalid verification code. Please try again or regenerate authentication.";
+            }
+            else
+            {
+                errorMessage = "Verification failed. Please try again.";
+            }
+        }
+    }
+
+    private async Task RegenerateTotp()
+    {
+        var userEmail = await UserService.GetCurrentUserEmailAsync();
+        qrCodeData = await AuthService.RegenerateTotp(userEmail);
+        if (string.IsNullOrWhiteSpace(qrCodeData) || qrCodeData.StartsWith("Error"))
+        {
+            qrCodeData = "Error in generating QR Code";
+        }
+        else
+        {
+            // Clear the input boxes
+            Digit1 = Digit2 = Digit3 = Digit4 = Digit5 = Digit6 = string.Empty;
+        }
+        hasTotpSecret = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await Task.Delay(1000); // Wait for 500 milliseconds
+        await JSRuntime.InvokeVoidAsync("window.setupInputFocus");
+    }
+
+}
+
+<style>
+    .verification-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        background-color: #f4f4f4;
+    }
+
+    .verification-form-container {
+        background: white;
+        padding: 40px;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    .verification-title {
+        color: #333;
+        margin-bottom: 20px;
+    }
+
+    .qr-code-img {
+        width: 250px;
+        height: 250px;
+        display: block;
+        margin: 0 auto 20px;
+    }
+
+    .totp-inputs {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 15px;
+    }
+
+    .totp-digit-input {
+        width: 40px;
+        margin: 0 5px;
+        text-align: center;
+        font-size: 1.2em;
+        display: inline-block;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+
+    .verify-button, .regenerate-button {
+        width: 100%;
+        padding: 10px;
+        border: none;
+        border-radius: 4px;
+        background-color: #007bff;
+        color: white;
+        font-size: 16px;
+        cursor: pointer;
+    }
+
+    .verify-button:hover, .regenerate-button:hover {
+        background-color: #0056b3;
+    }
+
+    .error {
+        color: red;
+        font-weight: bold;
+        margin-bottom: 15px;
+    }
+</style>
